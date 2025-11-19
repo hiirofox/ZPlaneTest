@@ -1,5 +1,4 @@
-#ifndef ZPLANE_HPP
-#define ZPLANE_HPP
+#pragma once
 
 #include <iostream>
 #include <vector>
@@ -12,7 +11,7 @@
 #include <stdexcept>
 #include <iomanip>
 
-namespace ZLab {
+namespace zp {
 
     // =======================================================================
     // 基础定义
@@ -79,32 +78,8 @@ namespace ZLab {
         T ProcessSample(T input) {
             if (registers.empty()) return T(0);
             registers[0] = input; // Reg 0 is always Input
-
-            // 1. 从延迟状态加载数据到寄存器 (模拟 ReadDelay)
-            // 注意：这里假设 delayState 已经保存了上一时刻的值
-            // 在拓扑中 ReadDelay 节点会映射到特定的寄存器
-            // 这里我们在 Compiler 中处理了 ReadDelay 的逻辑，通常不需要显式拷贝，
-            // 除非 ReadDelay 节点分配了独立的寄存器。
-            // 本实现中，DelayUpdate 负责在帧末尾写入，ReadDelay 在帧头直接从 delayState 读取不太方便，
-            // 更好的方式是：ReadDelay 节点分配一个寄存器，帧开始时将 delayState 拷入该寄存器。
-            // *但在本简化流水线中，我们采用直接映射：*
-            // 实际上，ReadDelay 节点在 Compiler 中被视为源点。
-            // 我们需要一个机制在 Step 开始前填充这些源点。
-
-            // 修正的 Delay 逻辑：
-            // 编译器会将 delayState[i] 映射到某个寄存器 k。
-            // 我们需要在计算开始前填充这些寄存器。
-            // 为了性能，我们在 Compiler 里生成一个 mapping。
-            // 这里简化处理：假设 Compiler 生成了 pre-fill 指令，或者我们直接在 ProcessSample 开头做。
-
-            // 这里使用一个简单的约定：编译器生成的 delayUpdates 包含 (DelayID -> SourceReg)。
-            // 我们需要一个反向映射 (DelayID -> TargetReg for next frame) 来做 Read。
-            // 简化起见，我们在 Compiler 中将 ReadDelay 分配为独立寄存器，并在这里填充。
         }
 
-        // 为了支持上面的逻辑，我们需要 Compiler 提供的信息。
-        // 实际上，ZCompiler 可以在 pipeline 头部插入 "LoadDelay" 的指令，或者我们在 Instance 里存一个 map。
-        // 这里采用 friend 注入的方式。
         std::vector<std::pair<int, int>> delayReadMap; // delayIndex -> registerIndex
 
         T Tick(T input) {
@@ -540,6 +515,4 @@ namespace ZLab {
 
     template<typename T> constexpr typename ZPlane<T>::ZFactory ZPlane<T>::z;
 
-} // namespace ZLab
-
-#endif
+} // namespace ZP

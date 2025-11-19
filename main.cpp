@@ -1,17 +1,19 @@
 #include <iostream>
 #include <vector>
 #include <memory>
+#include <complex>
 #include "ZPlane.h"
 
-using namespace ZLab;
+using namespace zp;
 
 // 模拟外部音频处理模块（如 Delay Line）
+template<typename T>
 struct ExtraDelay {
-	std::vector<double> buf;
+	std::vector<T> buf;
 	int head = 0;
 	ExtraDelay(int len) : buf(len, 0.0) {}
-	double process(double x) {
-		double y = buf[head];
+	T process(T x) {
+		T y = buf[head];
 		buf[head] = x;
 		head = (head + 1) % buf.size();
 		return y;
@@ -19,7 +21,7 @@ struct ExtraDelay {
 };
 
 int main() {
-	using Type = double;
+	using Type = std::complex<double>;
 	auto z = ZPlane<Type>::z;
 
 	std::cout << "=== Smart Division Lattice Allpass Test ===\n";
@@ -27,12 +29,12 @@ int main() {
 	const int STAGES = 8;
 	Type k[STAGES] = { 0.8, -0.9, 0.9, -0.99, 0.99, -0.999, 0.9999, -0.9 };
 
-	std::vector<std::unique_ptr<ExtraDelay>> delays;
+	std::vector<std::unique_ptr<ExtraDelay<Type>>> delays;
 	for (int i = 0; i < STAGES; ++i) {
-		delays.push_back(std::make_unique<ExtraDelay>(i + 1));
+		delays.push_back(std::make_unique<ExtraDelay<Type>>(i + 1));
 	}
 
-	ZPlane<Type> H = 1; // 初始全通传递函数为 1
+	ZPlane<Type> H = (Type)1.0; // 初始全通传递函数为 1
 
 	try {
 		for (int i = STAGES - 1; i >= 0; --i) {
@@ -68,7 +70,7 @@ int main() {
 		std::cout << "Compilation Successful.\n" << std::endl;
 
 		// === 运行测试 ===
-		double totalEnergy = 0.0;
+		Type totalEnergy = 0.0;
 		std::cout << "Time | Input | Output" << std::endl;
 		std::cout << "-----|-------|--------" << std::endl;
 
