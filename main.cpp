@@ -26,42 +26,26 @@ int main() {
 
 	std::cout << "=== Smart Division Lattice Allpass Test ===\n";
 
-	const int STAGES = 8;
-	Type k[STAGES] = { 0.8, -0.9, 0.9, -0.99, 0.99, -0.999, 0.9999, -0.9 };
+	const int STAGES = 16;
+	Type k[STAGES] = { (Type)0.8, (Type)-0.9,(Type)0.9, (Type)-0.99,(Type)0.99,(Type)-0.999,(Type)0.9999, (Type)-0.9 ,(Type)0.8, (Type)-0.9, (Type)0.9, (Type)-0.99,(Type)0.99,(Type)-0.999, (Type)0.9999, (Type)-0.9 };
 
 	std::vector<std::unique_ptr<ExtraDelay<Type>>> delays;
 	for (int i = 0; i < STAGES; ++i) {
 		delays.push_back(std::make_unique<ExtraDelay<Type>>(i + 1));
 	}
 
-	ZPlane<Type> H = (Type)1.0; // 初始全通传递函数为 1
+	ZPlane<Type> H = (ZPlane<Type>)1; // 初始全通传递函数为 1
 
 	try {
 		for (int i = STAGES - 1; i >= 0; --i) {
-			// 1. 创建外部延迟 Box
-			auto ExternalDelay = ZPlane<Type>::Box([ptr = delays[i].get()](Type x) {
+			auto ExternalDelay = ZPlane<Type>::SequentialBox([ptr = delays[i].get()](Type x) {
 				return ptr->process(x);
 				});
 
-			// 2. 准备级联信号
-			// 用户需求：希望写成 Link = Link * DelayedH;
-			// 这里利用重载的 operator* 实现级联：ExternalDelay 是 Box，DelayedH 是信号
-			// 语义：Link 的输入来源于 z(1)(H)
+			ZPlane<Type> Link = ExternalDelay * H;//测试部分
 
-			// 正常延迟写法：
-			ZPlane<Type> DelayedH = z(1)(H);
+			auto K = ZPlane<Type>::Ref(k[i]);//引用
 
-			// 如果用户不小心写成 ZPlane<Type> DelayedH = H; (没有 z(1))
-			// 那么 Link * DelayedH 会形成直接代数环，Compiler 将会报错。
-
-			// 使用 operator* 进行级联连接 (Syntactic Sugar)
-			ZPlane<Type> Link = ExternalDelay * DelayedH;
-
-			auto K = ZPlane<Type>::Ref(k[i]);
-
-			// 3. 全通滤波器公式 (Operator / 自动转换为 Lattice)
-			// H_new = (K + Link) / (1 + K * Link)
-			// Link 内部包含了对旧 H 的引用
 			H = (K + Link) / (Type(1.0) + K * Link);
 		}
 
@@ -70,25 +54,27 @@ int main() {
 		std::cout << "Compilation Successful.\n" << std::endl;
 
 		// === 运行测试 ===
-		Type totalEnergy = 0.0;
+		Type totalEnergy = (Type)0.0;
 		std::cout << "Time | Input | Output" << std::endl;
 		std::cout << "-----|-------|--------" << std::endl;
 
 		for (int t = 0; t < 5000000; ++t) {
-			Type input = (t == 0) ? 1.0 : 0.0; // 脉冲输入
+			Type input;
+			if (t == 0) input = Type{ cos(1.14514),sin(1.14514) }; // 单位冲激
+			else input = (Type)0.0;
 			Type output = proc.Tick(input);
 
 			totalEnergy += output * output;
 
-			if (t < 10) {
+			if (t < 30) {
 				std::cout << std::setw(4) << t << " | "
 					<< std::setw(5) << input << " | "
 					<< std::setw(8) << std::fixed << std::setprecision(5) << output << std::endl;
 			}
 		}
-		std::cout << "...\nTotal Energy (Impulse Response): " << totalEnergy << std::endl;
+		std::cout << "...\nTotal Energy (Impulse Response): " << std::abs(totalEnergy) << std::endl;
 
-		if (std::abs(totalEnergy - 1.0) < 1e-2)
+		if (std::abs(std::abs(totalEnergy) - 1.0) < 1e-2)
 			std::cout << "[PASS] Energy Conserved (Allpass Property Verified)" << std::endl;
 		else
 			std::cout << "[FAIL] Energy Mismatch" << std::endl;
